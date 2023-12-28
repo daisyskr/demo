@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>时间序列热力图</title>
+  </head>
+
+  <link rel="stylesheet" href="https://unpkg.com/cesium@1.108.0/Build/Cesium/Widgets/widgets.css" />
+  <script src="https://unpkg.com/cesium@1.108.0/Build/Cesium/Cesium.js"></script>
+  <script src="static/libs/turf.min.js"></script>
+
+  <script type="text/javascript" src="./heatMap.js"></script>
+  <!-- h337 -->
+  <script type="text/javascript" src="static/libs/heatmap.js"></script>
+
+  <body>
+    <div id="mapContainer"></div>
+    <div class="active-btn">
+      <button id="draw">时间序列热力图</button>
+      <button id="clear">清除</button>
+    </div>
+    <script>
+      ;(() => {
+        let viewer
+        Cesium.Ion.defaultAccessToken =
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4NTFhNzNiMC1hNDg2LTQ2ZjktOWU4OC02ZWYyNmRlNWZmOWYiLCJpZCI6NDcwNjMsImlhdCI6MTYxNjg0NzA1M30.4dNi5U6RimD-MY3abc2dXdGS-xpTatDMqMeUS5cnfAA'
+        viewer = new Cesium.Viewer('mapContainer', {
+          selectionIndicator: false, //是否启用地图选择
+          sceneMode: Cesium.SceneMode.SCENE3D,
+          animation: false, // 动画部件
+          fullscreenButton: false, // 全屏按钮部件
+          vrButton: false, // vr部件
+          geocoder: false, // 位置搜索部件
+          homeButton: false, // home按钮
+          infoBox: false, // 消息框部件
+          sceneModePicker: false, // 二三维切换部件
+          timeline: false, // 时间轴部件
+          navigationHelpButton: false, // 导航帮助按钮
+          navigationInstructionsInitiallyVisible: false, // 导航说明显示
+          baseLayerPicker: false, // 基础图层部件
+        })
+        let tdtLayer = new Cesium.UrlTemplateImageryProvider({
+          url: 'https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+          subdomains: ['a', 'b', 'c', 'd'],
+        })
+        viewer.imageryLayers.addImageryProvider(tdtLayer)
+        viewer.scene.fxaa = false
+        viewer.scene.postProcessStages.fxaa.enabled = false
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(117.68366962163708, 32.022212285238125, 45000),
+        })
+
+        let heatmap
+        let timer = null
+        let features = []
+        let option = {
+          geojson: [], //热力图geojson数据
+          radius: 15, //半径
+          maxOpacity: 0.5, //最大透明度
+          minOpacity: 0.5, //最小透明度
+          blur: 0.8, //边缘模糊度
+          baseHeight: 10, //基础高度
+          is3D: false, //是否绘制为三维热力图
+          primitiveType: 'TRANGLE', //TRANGLE（面）或LINES（网格）POINTS LINES LINE_LOOP LINE_STRIP TRIANGLES TRIANGLE_STRIP TRIANGLE_FAN
+          gradient: {
+            0.25: '#9999ff',
+            0.55: '#00ff00',
+            0.85: 'yellow',
+            1: 'red',
+          },
+          isLocation: false, //是否定位到热力图所在范围,
+          distance: { near: 0, far: 1500000 },
+        }
+
+        let event = [
+          {
+            id: 'draw',
+            clickEvent: () => {
+              getRandomGeojson()
+              option.geojson = features
+              heatmap && heatmap.destroy()
+              heatmap = new Heatmap(viewer, option)
+              timer = setInterval(() => {
+                getRandomGeojson()
+                heatmap && heatmap.update(features)
+              }, 1000)
+            },
+          },
+          {
+            id: 'clear',
+            clickEvent: () => {
+              timer && clearInterval(timer)
+              timer = null
+              heatmap && heatmap.destroy()
+            },
+          },
+        ]
+        event.forEach((item) => {
+          let dom = document.getElementById(item.id)
+          dom.addEventListener('click', item.clickEvent)
+        })
+
+        const getRandomGeojson = () => {
+          features = []
+          for (let i = 0; i < 100; i++) {
+            features.push({
+              type: 'Feature',
+              properties: {
+                value: parseInt(1000 * Math.random()),
+              },
+              geometry: {
+                type: 'Point',
+                coordinates: [
+                117.68 + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1),
+                32.023 + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1),
+                ],
+              },
+            })
+          }
+        }
+      })()
+    </script>
+  </body>
+  <style>
+    body {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+    }
+
+    #mapContainer {
+      height: 100%;
+    }
+
+    .active-btn {
+      top: 20px;
+      left: 50px;
+      z-index: 9;
+      position: fixed;
+    }
+  </style>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>热力图</title>
+  </head>
+
+  <link rel="stylesheet" href="https://unpkg.com/cesium@1.108.0/Build/Cesium/Widgets/widgets.css" />
+  <script src="https://unpkg.com/cesium@1.108.0/Build/Cesium/Cesium.js"></script>
+  <script src="static/libs/turf.min.js"></script>
+
+  <script type="text/javascript" src="./heatMap.js"></script>
+  <!-- h337 -->
+  <script type="text/javascript" src="static/libs/heatmap.js"></script>
+
+  <!-- 热力值气泡 -->
+  <script src="prompt/prompt.js"></script>
+  <link rel="stylesheet" href="prompt/prompt.css" />
+
+  <body>
+    <div id="mapContainer"></div>
+    <div class="active-btn">
+      <button id="draw2D_4">二维热力图(4段)</button>
+      <button id="draw2D_5">二维热力图(5段)</button>
+      <button id="draw3D">三维热力图</button>
+      <button id="drawGrid">网格式热力图</button>
+      <button id="drawDynamic">动态热力图(试用版)</button>
+      <button id="clear">清除</button>
+    </div>
+    <script>
+      ;(() => {
+        let viewer
+        Cesium.Ion.defaultAccessToken =
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4NTFhNzNiMC1hNDg2LTQ2ZjktOWU4OC02ZWYyNmRlNWZmOWYiLCJpZCI6NDcwNjMsImlhdCI6MTYxNjg0NzA1M30.4dNi5U6RimD-MY3abc2dXdGS-xpTatDMqMeUS5cnfAA'
+        viewer = new Cesium.Viewer('mapContainer', {
+          selectionIndicator: false, //是否启用地图选择
+          sceneMode: Cesium.SceneMode.SCENE3D,
+          animation: false, // 动画部件
+          fullscreenButton: false, // 全屏按钮部件
+          vrButton: false, // vr部件
+          geocoder: false, // 位置搜索部件
+          homeButton: false, // home按钮
+          infoBox: false, // 消息框部件
+          sceneModePicker: false, // 二三维切换部件
+          timeline: false, // 时间轴部件
+          navigationHelpButton: false, // 导航帮助按钮
+          navigationInstructionsInitiallyVisible: false, // 导航说明显示
+          baseLayerPicker: false, // 基础图层部件
+        })
+        let tdtLayer = new Cesium.UrlTemplateImageryProvider({
+          url: 'https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+          subdomains: ['a', 'b', 'c', 'd'],
+        })
+        viewer.imageryLayers.addImageryProvider(tdtLayer)
+        viewer.scene.fxaa = false
+        viewer.scene.postProcessStages.fxaa.enabled = false
+        // viewer.camera.flyTo({
+        //   destination: Cesium.Cartesian3.fromDegrees(117.31366962163708, 31.922212285238125, 35000)
+        // });
+
+        let heatmap
+        let geojson = {
+          type: 'FeatureCollection',
+          crs: {
+            type: 'name',
+            properties: {
+              name: 'urn:ogc:def:crs:OGC:1.3:CRS84',
+            },
+          },
+          features: [],
+        }
+        for (let i = 0; i < 100; i++) {
+          geojson.features.push({
+            type: 'Feature',
+            properties: {
+              value: parseInt(1000 * Math.random()),
+            },
+            geometry: {
+              type: 'Point',
+              coordinates: [
+                117.68 + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1),
+                32.023 + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1),
+              ],
+            },
+          })
+        }
+        let option = {
+          geojson: geojson || geojson.features, //热力图geojson数据,传标准geojson或只传features都可以
+          radius: 15, //半径
+          maxOpacity: 0.5, //最大透明度
+          minOpacity: 0.5, //最小透明度
+          blur: 0.8, //边缘模糊度
+          baseHeight: 10, //基础高度
+          is3D: false, //是否绘制为三维热力图
+          primitiveType: 'TRANGLE', //当is3D为true时生效 //TRANGLE（面）或LINES（网格）POINTS LINES LINE_LOOP LINE_STRIP TRIANGLES TRIANGLE_STRIP TRIANGLE_FAN
+          gradient: {
+            0.25: '#9999ff',
+            0.55: '#00ff00',
+            0.85: 'yellow',
+            1: 'red',
+          },
+          isLocation: true, //是否定位到热力图所在范围
+          showValue: true, //是否在鼠标滑过时显示热力值，默认false
+          distance: { near: 0, far: 1500000 }, //显示的范围(最小最大高度值)
+        }
+
+        let event = [
+          {
+            id: 'draw2D_4',
+            clickEvent: () => {
+              removeHandler()
+              heatmap && heatmap.destroy()
+              option.is3D = false
+              option.primitiveType = 'TRANGLE'
+              heatmap = new Heatmap(viewer, option)
+            },
+          },
+          {
+            id: 'draw2D_5',
+            clickEvent: () => {
+              removeHandler()
+              heatmap && heatmap.destroy()
+              option.is3D = false
+              option.primitiveType = 'TRANGLE'
+              let option2 = JSON.parse(JSON.stringify(option))
+              option2.gradient = {
+                0.1: '#9999ff',
+                0.25: '#33cccc',
+                0.5: '#00ff00',
+                0.9: '#ffff00',
+                1: '#ff0000',
+              }
+              heatmap = new Heatmap(viewer, option2)
+            },
+          },
+          {
+            id: 'draw3D',
+            clickEvent: () => {
+              removeHandler()
+              heatmap && heatmap.destroy()
+              option.is3D = true
+              option.primitiveType = 'TRANGLE'
+              heatmap = new Heatmap(viewer, option)
+            },
+          },
+          {
+            id: 'drawGrid',
+            clickEvent: () => {
+              removeHandler()
+              heatmap && heatmap.destroy()
+              option.is3D = true
+              option.primitiveType = 'LINES'
+              heatmap = new Heatmap(viewer, option)
+            },
+          },
+          {
+            id: 'drawDynamic',
+            clickEvent: () => {
+              removeHandler()
+              option.is3D = false
+              option.primitiveType = 'TRANGLE'
+              heatmap && heatmap.destroy()
+              heatmap = new Heatmap(viewer, option)
+              addHandler()
+            },
+          },
+          {
+            id: 'clear',
+            clickEvent: () => {
+              removeHandler()
+              heatmap && heatmap.destroy()
+            },
+          },
+        ]
+        event.forEach((item) => {
+          let dom = document.getElementById(item.id)
+          dom.addEventListener('click', item.clickEvent)
+        })
+        //动态热力图
+        let handler
+        const addHandler = () => {
+          let radiusConfig = [
+            {
+              height: 1000,
+              radius: 2,
+            },
+            {
+              height: 2500,
+              radius: 4,
+            },
+            {
+              height: 5000,
+              radius: 7,
+            },
+            {
+              height: 10000,
+              radius: 11,
+            },
+            {
+              height: 50000,
+              radius: 15,
+            },
+            {
+              height: 100000,
+              radius: 20,
+            },
+            {
+              height: 200000,
+              radius: 25,
+            },
+            {
+              height: 15000000000000000,
+              radius: 30,
+            },
+          ]
+          let option2 = JSON.parse(JSON.stringify(option))
+          option2.isLocation = false
+          handler = () => {
+            let height = viewer.camera.positionCartographic.height
+            let rItem = radiusConfig.find((item) => {
+              return height <= item.height
+            })
+            if (option2.radius != rItem.radius) {
+              option2.radius = rItem.radius
+              heatmap && heatmap.destroy()
+              heatmap = new Heatmap(viewer, option2)
+            }
+          }
+          viewer.camera.changed.addEventListener(handler)
+        }
+        const removeHandler = () => {
+          if (handler) {
+            viewer.camera.changed.removeEventListener(handler)
+            handler = null
+          }
+        }
+      })()
+    </script>
+  </body>
+  <style>
+    body {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+    }
+
+    #mapContainer {
+      height: 100%;
+    }
+
+    .active-btn {
+      top: 20px;
+      left: 50px;
+      z-index: 9;
+      position: fixed;
+    }
+  </style>
+</html>

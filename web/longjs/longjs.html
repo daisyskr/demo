@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css" />
+    <title>web worker处理长js卡死</title>
+  </head>
+  <body>
+    <div id="app">
+      <el-button @click="random(false)">计算在行政区划内的点</el-button>
+      <el-button @click="random(true)">计算在行政区划内的点(web worker)</el-button>
+
+      <el-card class="box-card" v-loading="loading">
+        <div>card1</div>
+        <div class="text item">{{resultPointsNumber??'点数' }}</div>
+      </el-card>
+      <el-card class="loading-card" v-loading="true">card2</el-card>
+    </div>
+  </body>
+  <script src="https://unpkg.com/vue@2/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <script src="static/libs/turf.min.js"></script>
+  <script>
+    let geometry = {}
+    let xhr = new XMLHttpRequest() // 创建XMLHttpRequest 实例
+    xhr.open('get', 'static/data/河南省.json', false) //设置为同步get请求
+    xhr.send(null) // 开始发送请求，并且阻塞后续代码执行，直到拿到响应
+    if ((xhr.status >= 200 && xhr.status < 300) || xhr.status == 304) {
+      geometry = JSON.parse(xhr.responseText)
+    } else {
+      console.log('请求失败')
+    }
+
+    const getPointsInGeometry = (options) => {
+      let { geometry, pointNumber, callback = () => {}, useWorker = true } = options || {}
+      let resultPoints = []
+      console.log('开始计算点位')
+      console.time('计算点位')
+      if (useWorker) {
+        //初始化worker
+        // let worker = createWorker(() => {
+        //   console.time('worker计算点位')
+        //   self.onmessage = function handleMessageFromMain(msg) {
+        //     console.log('message from main received in worker:', msg.data)
+        //     let resultPoints = []
+        //     let [pointNumber, geometry] = msg.data
+        //     let bbox = turf.bbox(geometry)
+        //     let point = turf.randomPoint(pointNumber, { bbox })
+        //     resultPoints = turf.pointsWithinPolygon(point, geometry)
+
+        //     self.postMessage(resultPoints)
+        //   }
+        //   console.timeEnd('worker计算点位')
+        // })
+        
+        let worker = new Worker('static/worker.js')
+        //主函数向worker发送数据
+        worker.postMessage([pointNumber, geometry])
+        //主函数监听获取woker计算后的数据
+        worker.addEventListener('message', function handleMessageFromWorker(msg) {
+          worker.terminate() //关闭worker
+          console.log('message from worker received in main:', msg.data)
+          resultPoints = msg.data
+          callback(resultPoints?.features?.length)
+          console.timeEnd('计算点位')
+        })
+      } else {
+        let bbox = turf.bbox(geometry) //计算行政区划外接矩形
+        let point = turf.randomPoint(pointNumber, { bbox }) //在bbox中随机生成指定数量的点
+        let resultPoints = turf.pointsWithinPolygon(point, geometry) //计算位于行政区划边界中的点
+        callback(resultPoints?.features?.length)
+        console.timeEnd('计算点位')
+      }
+    }
+
+    // 创建线程函数
+    // 直接在主函数中写worker代码，但是引入第三方库引不成功
+    function createWorker(f) {
+      // var blob = new Blob(['(' + f.toString() + ')()'])
+      var blob = new Blob([
+        `
+        // 通过importScripts引入.js文件
+        importScripts('libs/turf.min.js')
+        (${f.toString()}) () `,
+      ])
+      var url = window.URL.createObjectURL(blob)
+      var worker = new Worker(url)
+      return worker
+    }
+
+    let vue = new Vue({
+      el: '#app',
+      data: function () {
+        return {
+          loading: false,
+          resultPointsNumber: null,
+        }
+      },
+      methods: {
+        random(useWorker) {
+          if (this.loading == true) {
+            this.$message({
+              message: '上一个任务正在运行，请等待',
+              type: 'warning',
+            })
+            return
+          }
+          this.loading = true
+          getPointsInGeometry({
+            geometry,
+            pointNumber: 100000,
+            callback: (res) => {
+              this.resultPointsNumber = res
+              this.loading = false
+            },
+            useWorker,
+          })
+        },
+      },
+    })
+
+
+  </script>
+  <style>
+    #app {
+      width: 600px;
+      height: 200px;
+    }
+    .box-card {
+      width: 600px;
+      margin-top: 20px;
+    }
+    .loading-card {
+      width: 100px;
+      margin: 10px auto;
+    }
+  </style>
+</html>
