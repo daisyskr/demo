@@ -176,7 +176,7 @@ class Heatmap {
     } else {
       this.addPrimitive()
     }
-    this.distanceDisplayFuc()
+    ;(this.handler && this.handler()) || this.distanceDisplayFuc()
     // this.addPrimitive()
     // this.addPrimitive2()
     // this.addDynamicPrimitive()
@@ -338,9 +338,11 @@ class Heatmap {
       if (height >= this.opt.distance.near && height <= this.opt.distance.far) {
         this.primitive && (this.primitive.show = true)
         this.providerImage && (this.providerImage.show = true)
+        this.entity && (this.entity.show = true)
       } else {
         this.primitive && (this.primitive.show = false)
         this.providerImage && (this.providerImage.show = false)
+        this.entity && (this.entity.show = false)
       }
       // if (this.opt.isDynamic) {
       //   let rItem = this.opt.dynamicOption.find((item: any) => {
