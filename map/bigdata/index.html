@@ -11,19 +11,21 @@
   <link rel="stylesheet" href="static/libs/Cesium/Widgets/widgets.css" />
   <script src="static/libs/Cesium/Cesium.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/kdbush"></script>
-  <script src="./PrimitiveCluster.js"></script>
   <title>cesium加载大数据量</title>
 </head>
 
 <body>
   <div id="app">
-    <el-button @click="clickEvent(1)">entity测试</el-button>
-    <el-button @click="clickEvent(2)">primitive测试</el-button>
-    <el-button @click="clickEvent(3)">primitive聚合测试</el-button>
+    <el-button @click="clickEvent(1)">entity</el-button>
+    <el-button @click="clickEvent(2)">primitive</el-button>
+    <el-button @click="clickEvent(3)">entity聚合</el-button>
+    <el-button @click="clickEvent(4)">primitive聚合</el-button>
   </div>
-  <div id="mapContainer"></div>
+  <div id="mapContainer" v-loading="true"></div>
 </body>
-<script>
+<script type="module">
+  import EntityCluster from './EntityCluster.js'
+  import PrimitiveCluster from './PrimitiveCluster.js'
   Cesium.Ion.defaultAccessToken =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4NTFhNzNiMC1hNDg2LTQ2ZjktOWU4OC02ZWYyNmRlNWZmOWYiLCJpZCI6NDcwNjMsImlhdCI6MTYxNjg0NzA1M30.4dNi5U6RimD-MY3abc2dXdGS-xpTatDMqMeUS5cnfAA'
   let viewer = new Cesium.Viewer('mapContainer')
@@ -42,7 +44,7 @@
 
   const getPoints = (callback = () => { }) => {
     let bbox = [110.35502558000002, 31.384368830000028, 116.64641233000009, 36.36650799000006]
-    let number = 1000
+    let number = 10000
     // let points = turf.randomPoint(200000, { bbox })
     // let features = points.features
     // return features
@@ -59,36 +61,38 @@
   }
   const addEntity = () => {
     viewer.entities.removeAll()
-    let features = getPoints()
-    features.forEach((item, index) => {
-      viewer.entities.add({
-        // name: "e",
-        position: Cesium.Cartesian3.fromDegrees(...item.geometry.coordinates),
-        // point: {
-        //   pixelSize: 5,
-        //   color: Cesium.Color.RED,
-        //   outlineColor: Cesium.Color.WHITE,
-        //   outlineWidth: 2,
-        // },
-        billboard: {
-          image: "static/image/point.png",
-          width: 64,
-          height: 64,
-        },
-        label: {
-          text: index.toString(),
-          font: "14pt monospace",
-          style: Cesium.LabelStyle.FILL,
-          outlineWidth: 2,
-          verticalOrigin: Cesium.VerticalOrigin.TOP,
-          pixelOffset: new Cesium.Cartesian2(-3, 30),
-          // disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
+    getPoints((features) => {
+      features.forEach((item, index) => {
+        viewer.entities.add({
+          // name: "e",
+          position: Cesium.Cartesian3.fromDegrees(...item.geometry.coordinates),
+          // point: {
+          //   pixelSize: 5,
+          //   color: Cesium.Color.RED,
+          //   outlineColor: Cesium.Color.WHITE,
+          //   outlineWidth: 2,
+          // },
+          billboard: {
+            image: "static/images/red_position.png",
+            width: 64,
+            height: 64,
+          },
+          label: {
+            text: index.toString(),
+            font: "14pt monospace",
+            style: Cesium.LabelStyle.FILL,
+            outlineWidth: 2,
+            verticalOrigin: Cesium.VerticalOrigin.TOP,
+            pixelOffset: new Cesium.Cartesian2(-3, 30),
+            // disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        })
       })
+      // viewer.zoomTo(viewer.entities)
     })
-    // viewer.zoomTo(viewer.entities)
   }
   let billboardsPrimitives, labelsPrimitives = null
+
   const addPrimitive = (options) => {
     !billboardsPrimitives && (billboardsPrimitives = viewer.scene.primitives.add(new Cesium.BillboardCollection()))
     !labelsPrimitives && (labelsPrimitives = viewer.scene.primitives.add(new Cesium.LabelCollection()))
@@ -99,11 +103,11 @@
       console.log('拿到点位', features.length)
       console.time('绘制')
       features.forEach((item, index) => {
-        billboards.add({
+        billboardsPrimitives.add({
           position: new Cesium.Cartesian3.fromDegrees(...item.geometry.coordinates),
-          image: "static/image/point.png"
+          image: "static/images/red_position.png"
         })
-        // labelboards.add({
+        // labelsPrimitives.add({
         //   position: new Cesium.Cartesian3.fromDegrees(...item.geometry.coordinates),
         //   text: index.toString(),
         //   font: "14pt monospace",
@@ -117,9 +121,46 @@
       console.timeEnd('绘制')
     })
   }
-
-  // primitive 实现点位聚合（有图标，没有名称）
-  const addPrimitiveCluster = () => {
+  let entityCluster, primitiveCluster = null
+  let clusterOption = {
+    data: [],
+    interval: [
+      {
+        interval: [2, 500],
+        image: './static/images/light_blue_bkg.png',
+        width: 40,
+        height: 40,
+      },
+      {
+        interval: [501, 1000],
+        image: './static/images/dark_blue_bkg.png',
+        width: 48,
+        height: 48,
+      },
+      {
+        interval: [1001, 2000],
+        image: './static/images/orange_bkg.png',
+        width: 56,
+        height: 56,
+      },
+      {
+        interval: [2001, 9999999999],
+        image: './static/images/red_bkg.png',
+        width: 64,
+        height: 64,
+      },
+    ],
+  }
+  const addEntityCluster = () => {
+    !entityCluster && (entityCluster = new EntityCluster(viewer))
+    getPoints((features) => {
+      entityCluster.draw({
+        ...clusterOption,
+        data: features,
+      })
+    })
+  }
+  const addPrimitiveCluster1 = () => {
     getPoints((features) => {
       // 使用primitives 添加点
       let labels = new Cesium.LabelCollection()
@@ -145,7 +186,7 @@
         let img = {
           id: item.id || '11',
           position: Cesium.Cartesian3.fromDegrees(Number(center.lng), Number(center.lat), 80),
-          image: item.url || "static/image/point.png",
+          image: item.url || "static/images/red_position.png",
           width: item.poiWid || 40,
           height: item.poiHig || 40,
           scale: 1,
@@ -163,7 +204,8 @@
       // 同时在赋值时调用_initialize方法
       primitivecluster._initialize(viewer.scene)
       collection.add(primitivecluster)
-      this.primitivesCluster = viewer.scene.primitives.add(collection)
+      // this.primitivesCluster = viewer.scene.primitives.add(collection)
+      viewer.scene.primitives.add(collection)
       const pinBuilder = new Cesium.PinBuilder()
       primitivecluster.clusterEvent.addEventListener((clusteredEntities, cluster) => {
         // 关闭自带的显示聚合数量的标签
@@ -175,8 +217,6 @@
         cluster.billboard.image = pinImg
       })
     })
-
-
     // {
     //   lng
     //   lat
@@ -202,9 +242,16 @@
 
     // return primitivecluster
   }
-
-
-
+  const addPrimitiveCluster = () => {
+    !primitiveCluster && (primitiveCluster = new PrimitiveCluster(viewer))
+    getPoints((features) => {
+      primitiveCluster.draw({
+        ...clusterOption,
+        data: features,
+        delay:100
+      })
+    })
+  }
 
   let vue = new Vue({
     el: '#app',
@@ -224,6 +271,9 @@
             addPrimitive()
             break
           case 3:
+            addEntityCluster()
+            break
+          case 4:
             addPrimitiveCluster()
             break
           default:

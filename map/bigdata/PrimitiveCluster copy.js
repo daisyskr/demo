@@ -4,17 +4,17 @@
  * @Author: YangYuzhuo
  * @Date: 2024-01-02 11:08:52
  * @LastEditors: YangYuzhuo
- * @LastEditTime: 2024-03-26 17:22:11
+ * @LastEditTime: 2024-03-26 14:10:56
  * Copyright 2024
  * listeners
  */
 // import centroid from '@turf/centroid'
 // import BaseEffect from './BaseEffect.js'
-// import { colored_user } from './static/images/colored_user.png'
-// import { light_blue_bkg } from './static/images/light_blue_bkg.png'
-// import { dark_blue_bkg } from './static/images/dark_blue_bkg.png'
-// import { orange_bkg } from './static/images/orange_bkg.png'
-// import { red_bkg } from './static/images/red_bkg.png'
+// import { colored_user } from '../kit-assets/base64'
+// import { light_blue_bkg } from '../kit-assets/base64'
+// import { dark_blue_bkg } from '../kit-assets/base64'
+// import { orange_bkg } from '../kit-assets/base64'
+// import { red_bkg } from '../kit-assets/base64'
 
 import PrimitiveClusterBase from './PrimitiveClusterBase.js'
 
@@ -207,20 +207,20 @@ export default class PrimitiveCluster {
           height,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         })
-        // if (showlabel && label) {
-        //   _this.primitiveCluster._labelCollection.add({
-        //     position: Cesium.Cartesian3.fromDegrees(...center.geometry.coordinates, z),
-        //     text: properties[label],
-        //     font,
-        //     verticalOrigin: Cesium.VerticalOrigin[verticalOrigin],
-        //     horizontalOrigin: Cesium.HorizontalOrigin[horizontalOrigin],
-        //     pixelOffset: new Cesium.Cartesian2(...pixelOffset),
-        //     style: Cesium.LabelStyle[style],
-        //     showBackground,
-        //     backgroundColor: Cesium.Color.fromCssColorString(backgroundColor),
-        //     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        //   })
-        // }
+        if (showlabel && label) {
+          _this.primitiveCluster._labelCollection.add({
+            position: Cesium.Cartesian3.fromDegrees(...center.geometry.coordinates, z),
+            text: properties[label],
+            font,
+            verticalOrigin: Cesium.VerticalOrigin[verticalOrigin],
+            horizontalOrigin: Cesium.HorizontalOrigin[horizontalOrigin],
+            pixelOffset: new Cesium.Cartesian2(...pixelOffset),
+            style: Cesium.LabelStyle[style],
+            showBackground,
+            backgroundColor: Cesium.Color.fromCssColorString(backgroundColor),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          })
+        }
       } else {
         console.log('坐标数据缺失')
       }
@@ -257,8 +257,8 @@ export default class PrimitiveCluster {
             clusteredEntities.length,
             originImageSize || 64
           )
-          cluster.billboard.width = item.width || 64
-          cluster.billboard.height = item.height || 64
+          cluster.billboard.width = item.width || 48
+          cluster.billboard.height = item.height || 48
         }
       })
       cluster.billboard.disableDepthTestDistance = Number.POSITIVE_INFINITY //防止billboard被建筑遮盖
@@ -288,6 +288,7 @@ export default class PrimitiveCluster {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(label, size / 2, size / 2)
+
       return canvas
     })
     return promise

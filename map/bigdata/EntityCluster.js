@@ -4,23 +4,20 @@
  * @Author: YangYuzhuo
  * @Date: 2024-01-02 11:08:52
  * @LastEditors: YangYuzhuo
- * @LastEditTime: 2024-03-26 17:22:11
+ * @LastEditTime: 2024-03-26 11:45:21
  * Copyright 2024
  * listeners
  */
 // import centroid from '@turf/centroid'
 // import BaseEffect from './BaseEffect.js'
-// import { colored_user } from './static/images/colored_user.png'
-// import { light_blue_bkg } from './static/images/light_blue_bkg.png'
-// import { dark_blue_bkg } from './static/images/dark_blue_bkg.png'
-// import { orange_bkg } from './static/images/orange_bkg.png'
-// import { red_bkg } from './static/images/red_bkg.png'
-
-import PrimitiveClusterBase from './PrimitiveClusterBase.js'
+// import { colored_user } from '../kit-assets/base64'
+// import { light_blue_bkg } from '../kit-assets/base64'
+// import { dark_blue_bkg } from '../kit-assets/base64'
+// import { orange_bkg } from '../kit-assets/base64'
+// import { red_bkg } from '../kit-assets/base64'
 
 const defaultOption = {
   data: [],
-  delay: 500,
   pixelRange: 60,
   minimumClusterSize: 2,
   originImageSize: 64,
@@ -67,11 +64,11 @@ const defaultOption = {
     },
   ],
 }
-export default class PrimitiveCluster {
+export default class EntityCluster {
   constructor(viewer) {
     if (!Cesium.defined(viewer)) throw new Error('viewer is not undefined!')
     this.type = 'EntityCluster'
-    this.viewer = viewer
+    this._v = viewer
     this._show = true
     this.dataSource = null
     this.handler = null
@@ -96,7 +93,6 @@ export default class PrimitiveCluster {
             },
           },
         ],
-        delay: 500, //防抖定时器
         pixelRange: 60, //聚合范围，默认60
         minimumClusterSize: 2, //最小聚合数，默认2
         originImageSize: 64, //背景图片原始尺寸，默认64
@@ -158,16 +154,13 @@ export default class PrimitiveCluster {
     opt.poiStyle.labelStyle = { ...defaultOption.poiStyle.labelStyle, ...opt.poiStyle.labelStyle }
     this.option = opt
 
-    const primitives = this.viewer.scene.primitives.add(new Cesium.PrimitiveCollection())
-    const billboardCollection = new Cesium.BillboardCollection()
-    const labelCollection = new Cesium.LabelCollection()
-    this.primitiveCluster = new PrimitiveClusterBase()
-    primitives.add(this.primitiveCluster)
-    this.primitiveCluster._billboardCollection = billboardCollection
-    this.primitiveCluster._labelCollection = labelCollection
-
+    let _this = this
+    this.dataSource = new Cesium.CustomDataSource('cluster')
+    let dataSourcePromise = this._v.dataSources.add(this.dataSource)
     this.addData(this.option.data)
-    this.#initCluster()
+    dataSourcePromise.then(function (e) {
+      _this.#initCluster()
+    })
   }
   /**
    * 添加聚合数据
@@ -188,7 +181,7 @@ export default class PrimitiveCluster {
       ],
    */
   addData(data) {
-    if (!this.primitiveCluster) {
+    if (!this.dataSource) {
       console.log('请先初始化Cluster实例')
       return
     }
@@ -200,27 +193,30 @@ export default class PrimitiveCluster {
         let { geometry, properties = {} } = item
         let center = geometry.type == 'Point' ? { geometry } : turf.centroid({ type: 'Feature', geometry })
         let z = Number(properties?.height) || 0
-        _this.primitiveCluster._billboardCollection.add({
+        let param = {
+          properties: properties,
           position: Cesium.Cartesian3.fromDegrees(...center.geometry.coordinates, z),
-          image: properties?.image || image,
-          width,
-          height,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        })
-        // if (showlabel && label) {
-        //   _this.primitiveCluster._labelCollection.add({
-        //     position: Cesium.Cartesian3.fromDegrees(...center.geometry.coordinates, z),
-        //     text: properties[label],
-        //     font,
-        //     verticalOrigin: Cesium.VerticalOrigin[verticalOrigin],
-        //     horizontalOrigin: Cesium.HorizontalOrigin[horizontalOrigin],
-        //     pixelOffset: new Cesium.Cartesian2(...pixelOffset),
-        //     style: Cesium.LabelStyle[style],
-        //     showBackground,
-        //     backgroundColor: Cesium.Color.fromCssColorString(backgroundColor),
-        //     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        //   })
-        // }
+          billboard: {
+            image: properties?.image || image,
+            width,
+            height,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        }
+        if (showlabel && label) {
+          param.label = {
+            text: properties[label],
+            font,
+            verticalOrigin: Cesium.VerticalOrigin[verticalOrigin],
+            horizontalOrigin: Cesium.HorizontalOrigin[horizontalOrigin],
+            pixelOffset: new Cesium.Cartesian2(...pixelOffset),
+            style: Cesium.LabelStyle[style],
+            showBackground,
+            backgroundColor: Cesium.Color.fromCssColorString(backgroundColor),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          }
+        }
+        _this.dataSource.entities.add(new Cesium.Entity(param))
       } else {
         console.log('坐标数据缺失')
       }
@@ -236,12 +232,10 @@ export default class PrimitiveCluster {
   #initCluster() {
     let _this = this
     // 设置聚合参数
-    this.primitiveCluster.enabled = true //开启聚合功能
-    let { delay, pixelRange, minimumClusterSize, originImageSize, interval } = this.option
-    this.primitiveCluster.delay = delay
-    this.primitiveCluster.pixelRange = pixelRange
-    this.primitiveCluster.minimumClusterSize = minimumClusterSize
-    this.primitiveCluster._initialize(this.viewer.scene)
+    this.dataSource.clustering.enabled = true
+    let { pixelRange, minimumClusterSize, originImageSize, interval } = this.option
+    this.dataSource.clustering.pixelRange = pixelRange
+    this.dataSource.clustering.minimumClusterSize = minimumClusterSize
 
     this.handler = function (clusteredEntities, cluster) {
       // 关闭自带的显示聚合数量的标签
@@ -257,14 +251,14 @@ export default class PrimitiveCluster {
             clusteredEntities.length,
             originImageSize || 64
           )
-          cluster.billboard.width = item.width || 64
-          cluster.billboard.height = item.height || 64
+          cluster.billboard.width = item.width || 48
+          cluster.billboard.height = item.height || 48
         }
       })
       cluster.billboard.disableDepthTestDistance = Number.POSITIVE_INFINITY //防止billboard被建筑遮盖
     }
     // 添加监听函数
-    this.primitiveCluster.clusterEvent.addEventListener(this.handler)
+    this.dataSource.clustering.clusterEvent.addEventListener(this.handler)
   }
 
   #combineIconAndLabel(url, label, size) {
@@ -288,6 +282,7 @@ export default class PrimitiveCluster {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(label, size / 2, size / 2)
+
       return canvas
     })
     return promise
@@ -296,17 +291,17 @@ export default class PrimitiveCluster {
   /**
    * 定位到对象
    */
-  // flyTo() {
-  //   this.dataSource?.entities.values && this.viewer.flyTo(this.dataSource.entities.values)
-  // }
+  flyTo() {
+    this.dataSource?.entities.values && this._v.flyTo(this.dataSource.entities.values)
+  }
 
   /**
    * 销毁对象
    */
   destroy() {
-    this.handler && this.primitiveCluster.clusterEvent.removeEventListener(this.handler)
-    this.primitiveCluster && this.viewer.scene.primitives.remove(this.primitiveCluster)
-    this.primitiveCluster = null
+    this.handler && this.dataSource.clustering.clusterEvent.removeEventListener(this.handler)
+    this.dataSource && this._v.dataSources.remove(this.dataSource)
+    this.dataSource = null
     this.handler = null
     this.type = null
     this.option = null
@@ -318,8 +313,8 @@ export default class PrimitiveCluster {
    */
   set show(bool) {
     this._show = bool
-    if (this.primitiveCluster) {
-      this.primitiveCluster.show = bool
+    if (this.dataSource) {
+      this.dataSource.show = bool
     }
   }
   get show() {

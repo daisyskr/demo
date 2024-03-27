@@ -1,0 +1,117 @@
+<!--
+ * @Author: hejin.gao gaohj@zhiwyl.com
+ * @Date: 2023-12-08 13:34:23
+ * @LastEditors: YangYuzhuo
+ * @LastEditTime: 2024-01-03 14:39:44
+ * @FilePath: \grid-kit\examples\index.html
+ * @Description: 
+ * 
+ * Copyright (c) 2023 by ${git_name_email}, All Rights Reserved. 
+-->
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="/logo.svg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link type="text/css" rel="stylesheet" href="static/css/index.css">
+  <link type="text/css" rel="stylesheet" href="static/libs/element/index.css">
+  <link type="text/css" rel="stylesheet" href="static/css/kit.css">
+  <link type="text/css" rel="stylesheet"
+    href="http://192.168.1.102:8088/data/libs/Cesium/Cesium-1.112/Build/CesiumUnminified/Widgets/widgets.css">
+
+
+  <script type="text/javascript" src="static/libs/jquery.min.js"></script>
+  <script type="text/javascript" src="static/libs/vue.min.js"></script>
+  <script type="text/javascript" src="static/libs/element/index.js"></script>
+  <script type="text/javascript" src="static/libs/kit/kit.js"></script>
+  <script type="text/javascript"
+    src="http://192.168.1.102:8088/data/libs/Cesium/Cesium-1.112/Build/CesiumUnminified/Cesium.js"></script>
+  <!-- <script type="text/javascript"
+    src="http://localhost:8088/data/libs/Cesium/Cesium-1.112/Build/CesiumUnminified/Cesium.js"></script> -->
+
+  <script type="text/javascript" src="static/script/main.js"></script>
+  <title>北斗网格KIT</title>
+  <style>
+  </style>
+</head>
+
+<body>
+  <div id="app" class="full-screen">
+    <div id="earth" class="full-screen">
+      <div class="active-btn">
+        <div class="block">
+          <el-button-group size="small">
+            <el-button type="primary" size="small" @click="drawCluster(1)">点聚合</el-button>
+            <el-button type="primary" size="small" @click="drawCluster(2)">添加数据</el-button>
+            <el-button type="primary" size="small" @click="drawCluster(3)">重置数据</el-button>
+            <el-button type="primary" size="small" @click="drawCluster(4)">定位</el-button>
+            <el-button type="primary" size="small" @click="drawCluster(5)">显隐</el-button>
+            <el-button type="primary" size="small" @click="drawCluster(6)">清除</el-button>
+          </el-button-group>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+
+<script>
+  let _v = null
+  let _cluster = null
+  let _personJson = null
+
+  $.ajax('static/data/person.json', {
+    method: 'GET',
+    data: {},
+    success: function(result) {
+      _personJson = result
+    }
+  })
+
+
+  vue = new Vue({
+    el: '#app',
+    data: {},
+    methods: {
+      drawCluster(key) {
+        switch (key) {
+          case 1:
+            _cluster.draw({ data: _personJson })
+            break
+          case 2:
+            _cluster.addData(_personJson)
+            break
+          case 3:
+            _cluster.resetData()
+            break
+          case 4:
+            _cluster.flyTo()
+            break
+          case 5:
+            _cluster.show = !_cluster._show
+            break
+          case 6:
+            _cluster.destroy()
+            break
+          default:
+            break
+        }
+      },
+    },
+    destroyed() {
+      _cluster.destroy()
+      window.viewer && window.viewer.destroy()
+      window.viewer = null
+      _v = null
+    },
+  })
+
+
+  _v.scene.globe.depthTestAgainstTerrain = true
+  _cluster = new Kit.Effects.Cluster(_v)
+
+</script>
+
+</html>
