@@ -19,13 +19,15 @@
     <el-button @click="clickEvent(1)">entity</el-button>
     <el-button @click="clickEvent(2)">primitive</el-button>
     <el-button @click="clickEvent(3)">entity聚合</el-button>
-    <el-button @click="clickEvent(4)">primitive聚合</el-button>
+    <el-button @click="clickEvent(4)">primitive聚合1</el-button>
+    <el-button @click="clickEvent(5)">primitive聚合2</el-button>
   </div>
   <div id="mapContainer" v-loading="true"></div>
 </body>
 <script type="module">
   import EntityCluster from './EntityCluster.js'
   import PrimitiveCluster from './PrimitiveCluster.js'
+  import PrimitiveClusterBase from './PrimitiveClusterBase.js'
   Cesium.Ion.defaultAccessToken =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4NTFhNzNiMC1hNDg2LTQ2ZjktOWU4OC02ZWYyNmRlNWZmOWYiLCJpZCI6NDcwNjMsImlhdCI6MTYxNjg0NzA1M30.4dNi5U6RimD-MY3abc2dXdGS-xpTatDMqMeUS5cnfAA'
   let viewer = new Cesium.Viewer('mapContainer')
@@ -44,7 +46,7 @@
 
   const getPoints = (callback = () => { }) => {
     let bbox = [110.35502558000002, 31.384368830000028, 116.64641233000009, 36.36650799000006]
-    let number = 10000
+    let number = 120000
     // let points = turf.randomPoint(200000, { bbox })
     // let features = points.features
     // return features
@@ -187,8 +189,8 @@
           id: item.id || '11',
           position: Cesium.Cartesian3.fromDegrees(Number(center.lng), Number(center.lat), 80),
           image: item.url || "static/images/red_position.png",
-          width: item.poiWid || 40,
-          height: item.poiHig || 40,
+          width: 40,//item.poiWid || 40,
+          height: 40,//item.poiHig || 40,
           scale: 1,
           verticalOrigin: Cesium.VerticalOrigin.TOP, //垂直位置
         }
@@ -196,10 +198,11 @@
         billboards.add(img)
       })
       let primitivecluster = null
-      primitivecluster = new PrimitiveCluster()
+      primitivecluster = new PrimitiveClusterBase()
       primitivecluster.enabled = true
-      primitivecluster.pixelRange = 1
-      primitivecluster.minimumClusterSize = 10
+      primitivecluster.pixelRange = 60
+      primitivecluster.minimumClusterSize = 2
+      primitivecluster._labelCollection = labels
       primitivecluster._billboardCollection = billboards
       // 同时在赋值时调用_initialize方法
       primitivecluster._initialize(viewer.scene)
@@ -242,13 +245,13 @@
 
     // return primitivecluster
   }
-  const addPrimitiveCluster = () => {
+  const addPrimitiveCluster2 = () => {
     !primitiveCluster && (primitiveCluster = new PrimitiveCluster(viewer))
     getPoints((features) => {
       primitiveCluster.draw({
         ...clusterOption,
         data: features,
-        delay:100
+        delay: 100
       })
     })
   }
@@ -274,7 +277,10 @@
             addEntityCluster()
             break
           case 4:
-            addPrimitiveCluster()
+            addPrimitiveCluster1()
+            break
+          case 5:
+            addPrimitiveCluster2()
             break
           default:
             break

@@ -4,7 +4,7 @@
  * @Author: YangYuzhuo
  * @Date: 2024-01-02 11:08:52
  * @LastEditors: YangYuzhuo
- * @LastEditTime: 2024-03-26 17:22:11
+ * @LastEditTime: 2024-03-27 12:20:03
  * Copyright 2024
  * listeners
  */
@@ -76,6 +76,7 @@ export default class PrimitiveCluster {
     this.dataSource = null
     this.handler = null
     this.option = null
+    this.bkImages = []
   }
 
   /**
@@ -266,7 +267,6 @@ export default class PrimitiveCluster {
     // 添加监听函数
     this.primitiveCluster.clusterEvent.addEventListener(this.handler)
   }
-
   #combineIconAndLabel(url, label, size) {
     // 创建画布对象
     let canvas = document.createElement('canvas')
@@ -274,7 +274,18 @@ export default class PrimitiveCluster {
     canvas.height = size
     let ctx = canvas.getContext('2d')
     let resource = Cesium.Resource
-    let promise = new resource.fetchImage(url).then((image) => {
+
+    if (!!this.bkImages[url]) {
+      return getImage(this.bkImages[url], label, size).toDataURL()
+    } else {
+      let promise = new resource.fetchImage(url).then((image) => {
+        this.bkImages[url] = image
+        return getImage(image, label, size)
+      })
+      return promise
+    }
+
+    function getImage(image, label, size) {
       // 异常判断
       try {
         ctx.drawImage(image, 0, 0)
@@ -284,14 +295,39 @@ export default class PrimitiveCluster {
       // 渲染字体
       // font属性设置顺序：font-style, font-variant, font-weight, font-size, line-height, font-family
       ctx.fillStyle = Cesium.Color.WHITE.toCssColorString()
-      ctx.font = 'bold 20px Microsoft YaHei'
+      ctx.font = 'bold 18px Microsoft YaHei'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(label, size / 2, size / 2)
       return canvas
-    })
-    return promise
+    }
   }
+  // #combineIconAndLabel(url, label, size) {
+  //   // 创建画布对象
+  //   let canvas = document.createElement('canvas')
+  //   canvas.width = size
+  //   canvas.height = size
+  //   let ctx = canvas.getContext('2d')
+  //   let resource = Cesium.Resource
+
+  //   let promise = new resource.fetchImage(url).then((image) => {
+  //     // 异常判断
+  //     try {
+  //       ctx.drawImage(image, 0, 0)
+  //     } catch (e) {
+  //       console.log(e)
+  //     }
+  //     // 渲染字体
+  //     // font属性设置顺序：font-style, font-variant, font-weight, font-size, line-height, font-family
+  //     ctx.fillStyle = Cesium.Color.WHITE.toCssColorString()
+  //     ctx.font = 'bold 20px Microsoft YaHei'
+  //     ctx.textAlign = 'center'
+  //     ctx.textBaseline = 'middle'
+  //     ctx.fillText(label, size / 2, size / 2)
+  //     return canvas.toDataURL()
+  //   })
+  //   return promise
+  // }
 
   /**
    * 定位到对象
