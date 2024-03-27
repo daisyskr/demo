@@ -1,5 +1,5 @@
 // 通过importScripts引入.js文件
-importScripts('libs/turf.min.js')
+importScripts('../../static/libs/turf.min.js')
 ;(() => {
   console.time('worker计算点位')
   // 监听 main 并将缓冲区转移到 worker

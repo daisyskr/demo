@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="../static/libs/turf.min.js"></script>
+  <link rel="stylesheet" href="../static/libs/Cesium/Widgets/widgets.css" />
+  <script src="../static/libs/Cesium/Cesium.js"></script>
+  <title>电磁辐射正六边形蜂窝图</title>
+</head>
+
+<body>
+  <div id="mapContainer" v-loading="true"></div>
+</body>
+<script>
+  Cesium.Ion.defaultAccessToken =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4NTFhNzNiMC1hNDg2LTQ2ZjktOWU4OC02ZWYyNmRlNWZmOWYiLCJpZCI6NDcwNjMsImlhdCI6MTYxNjg0NzA1M30.4dNi5U6RimD-MY3abc2dXdGS-xpTatDMqMeUS5cnfAA'
+  let viewer = new Cesium.Viewer('mapContainer')
+  // 显示帧率
+  viewer.scene.debugShowFramesPerSecond = true
+  // let tdtLayer = new Cesium.UrlTemplateImageryProvider({
+  //   url: 'https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+  //   subdomains: ['a', 'b', 'c', 'd'],
+  // })
+  // viewer.imageryLayers.addImageryProvider(tdtLayer)
+  // viewer.scene.fxaa = false
+  // viewer.scene.postProcessStages.fxaa.enabled = false
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(110.05432731318437, 19.716721693763827, 131772)
+  })
+  // viewer.camera.flyTo({
+  //   destination: Cesium.Rectangle.fromDegrees(109.93183062823891, 19.59168758153344, 110.22274599673403, 19.83215039469198)
+  // })
+
+  // 空间电磁六边形半径
+  var hexagonRadius = 1000
+  // 空间电磁辐射强度色值
+  var magnetColorArr = ['#E74B1F', '#F29B00', '#FFE478', '#FFFFC8']
+  // 空间电磁辐射强度色值对应的影响距离
+  var magnetDistance = [14000, 16000, 18000, 20000]
+  //电磁基站
+  var magnetBaseStation = [
+    [109.79980744342872, 19.726783300634732],
+    [110.33598888957718, 19.728501947765064]
+  ]
+  // 矩形坐标点
+  var rectangle = { west: 109.93183062823891, south: 19.59168758153344, east: 110.22274599673403, north: 19.83215039469198 }
+
+  // 绘制空间电磁信息
+  function drawMagnetSpace(magnetBaseStation, rectangle) {
+    // 电磁辐射范围数组，监测六边形是否在电磁站的辐射范围内时使用
+    var magnetRangeArr = getMagnetRangeArr(magnetBaseStation)
+    // 得到一个六边形,计算相邻六边形相差的经纬度差值
+    var hexagonArr = countHexagonLonLatPoint(rectangle.west, rectangle.south, hexagonRadius)
+    var countLon = hexagonArr[0].lon - rectangle.west
+    var countLat = hexagonArr[1].lat - rectangle.south
+
+    // 计算六边形在矩形中的中心坐标点
+    var pointArr = countHexagonCenterPoint(rectangle, countLon, countLat)
+    // 循环封装六边形
+    for (var i = 0; i < pointArr.length; i++) {
+      // 监测六边形是否在电磁站的辐射范围内
+      var checkResult = checkMagnetRange(magnetRangeArr, pointArr[i])
+      var distance = checkResult["distance"]
+      var polygonColor = Cesium.Color.WHITE.withAlpha(1)
+      for (var j = 0; j < magnetDistance.length; j++) {
+        if (distance < magnetDistance[j]) {
+          polygonColor = Cesium.Color.fromCssColorString(magnetColorArr[j])
+          break
+        }
+      }
+
+      // 得到六边形的三维空间坐标点并绘制六边形
+      var hexagonPointArr = countHexagonCartesian3Point(pointArr[i].lon, pointArr[i].lat, hexagonRadius)
+      showPolygon(i, hexagonPointArr, polygonColor)
+    }
+  }
+  // 电磁辐射范围数组
+  function getMagnetRangeArr(magnetBaseStation) {
+    // 电磁辐射范围数组
+    var magnetRangeArr = []
+    // 绘制电磁基站
+    for (var i = 0; i < magnetBaseStation.length; i++) {
+      //绘制电磁基站
+      showExtendCircle({
+        position: new Cesium.Cartesian3.fromDegrees(magnetBaseStation[i][0], magnetBaseStation[i][1]),
+        semiMajorAxis: 20000,
+        semiMinorAxis: 20000,
+        material: Cesium.Color.RED.withAlpha(0.3)
+      })
+
+      //定义并封装电磁基站的辐射范围左边点集合
+      var lonlatArr = []
+      var circlePointArr = computeCirclePolygon2(new Cesium.Cartesian3.fromDegrees(magnetBaseStation[i][0], magnetBaseStation[i][1]), 20000)
+      for (var j = 0; j < circlePointArr.length; j++) {
+        var geographySpace = Cesium.Cartographic.fromCartesian(circlePointArr[j])
+        lonlatArr.push([Cesium.Math.toDegrees(geographySpace.longitude), Cesium.Math.toDegrees(geographySpace.latitude)])
+      }
+      magnetRangeArr.push(lonlatArr)
+    }
+    return magnetRangeArr
+  }
+  // 计算圆周坐标
+  function computeCirclePolygon2(center, radius) {
+    var cep = Cesium.EllipseGeometryLibrary.computeEllipsePositions({
+      center: center,
+      semiMajorAxis: radius,
+      semiMinorAxis: radius,
+      rotation: 0,
+      granularity: 0.005
+    }, false, true)
+    if (!cep || !cep.outerPositions) {
+      return null
+    }
+    var pnts = Cesium.Cartesian3.unpackArray(cep.outerPositions)
+    var first = pnts[0]
+    pnts[pnts.length] = first
+    return pnts
+  }
+  // 监测六边形是否在电磁站的辐射范围内
+  function checkMagnetRange(magnetRangeArr, centerPoint) {
+    // 六边形和电磁站辐射范围重合标识
+    var coincideFlag = false
+    // 六边形距离电磁站最短距离
+    var distance = 0
+
+    // 定义并封装六边形经纬度坐标点
+    var lonlatArr = []
+    // 得到一个六边形的经纬度坐标点
+    var hexagonPointArr = countHexagonLonLatPoint(centerPoint.lon, centerPoint.lat, hexagonRadius)
+    for (var j = 0; j < hexagonPointArr.length; j++) {
+      lonlatArr.push([hexagonPointArr[j].lon, hexagonPointArr[j].lat])
+    }
+    // 六边形平面
+    var hexagonPoly = turf.polygon([lonlatArr])
+    // 六边形中心坐标点
+    var hexagonPoint = turf.point([centerPoint.lon, centerPoint.lat])
+
+    // 循环监测六边形是否在电磁站的辐射范围内
+    for (var i = 0; i < magnetRangeArr.length; i++) {
+      var magnetRangePoly = turf.polygon([magnetRangeArr[i]])
+      // 判断面和面是否重合
+      if (turf.booleanOverlap(hexagonPoly, magnetRangePoly)) {
+        coincideFlag = true
+        break
+        // 判断点是否在面内
+      } else if (turf.booleanPointInPolygon(hexagonPoint, magnetRangePoly)) {
+        coincideFlag = true
+        break
+      }
+    }
+
+    // 计算六边形和电磁站的最短距离(没有点矩面的最小距离，所以先得到点到多边形每条线的最短距离，然后再取最其最短距离作为点到面的最短距离)
+    var distanceArr = []
+    for (var i = 0; i < magnetBaseStation.length; i++) {
+      var magnetRangePoint = turf.point(magnetBaseStation[i])
+      for (var j = 0; j < hexagonPointArr.length; j++) {
+        var hexagonLine = null
+        if (j < hexagonPointArr.length - 1) {
+          hexagonLine = turf.lineString([[hexagonPointArr[j].lon, hexagonPointArr[j].lat], [hexagonPointArr[j + 1].lon, hexagonPointArr[j + 1].lat]])
+        } else {
+          hexagonLine = turf.lineString([[hexagonPointArr[j].lon, hexagonPointArr[j].lat], [hexagonPointArr[0].lon, hexagonPointArr[0].lat]])
+        }
+        // 单位: miles, nauticalmiles, inches, yards, meters, metres, kilometers, centimeters, feet
+        distanceArr.push(turf.pointToLineDistance(magnetRangePoint, hexagonLine, { units: 'meters' }))
+      }
+    }
+    distance = Math.min.apply(null, distanceArr)
+
+    // 返回值
+    return {
+      coincideFlag: coincideFlag,
+      distance: distance
+    }
+  }
+  // 绘制矩形
+  function showPolygon(name, positions, color) {
+    viewer.entities.add({
+      name: name,
+      polygon: {
+        hierarchy: positions,
+        height: 50,
+        outline: true, outlineWidth: 100,
+        arcType: Cesium.ArcType.RHUMB,
+        material: color
+      }
+    })
+  }
+  // 绘制圆
+  function showExtendCircle(obj) {
+    var circle = viewer.entities.add({
+      name: 'ellipse',
+      position: obj.position,
+      ellipse: {
+        semiMajorAxis: obj.semiMajorAxis, // 长轴长度
+        semiMinorAxis: obj.semiMinorAxis, // 短轴长度
+        material: obj.material
+      }
+    })
+    return circle
+  }
+  // 计算六边形在矩形中的中心坐标点
+  function countHexagonCenterPoint(coordinates, countLon, countLat) {
+    var west = coordinates.west
+    var south = coordinates.south
+    var east = coordinates.east
+    var north = coordinates.north
+
+    // 定义并得到经度坐标集合
+    var lonArr = []
+    var templon = west
+    lonArr.push(west)
+    while (templon < east) {
+      templon += countLon * 3
+      if (templon < east) {
+        lonArr.push(templon)
+      }
+    }
+
+    // 定义并得到维度坐标集合
+    var latArr = []
+    var tempLat = south
+    latArr.push(south)
+    while (tempLat < north) {
+      tempLat += countLat
+      if (tempLat < north) {
+        latArr.push(tempLat)
+      }
+    }
+
+    // 循环封装坐标点
+    var pointArr = []
+    for (var i = 0; i < lonArr.length; i++) {
+      for (var j = 0; j < latArr.length; j++) {
+        var tempLon = lonArr[i]
+        var tempLat = latArr[j]
+        if (j % 2 == 1) {
+          tempLon = tempLon + countLon * 1.5
+        }
+        pointArr.push({
+          lon: tempLon,
+          lat: tempLat
+        })
+      }
+    }
+    return pointArr
+  }
+  // 根据六边形中心坐标点及半径计算六边形坐标点
+  function countHexagonLonLatPoint(lon, lat, hexagonRadius) {
+    var centerPoint = new Cesium.Cartesian3.fromDegrees(lon, lat)
+    var webMercatorProjection = new Cesium.WebMercatorProjection(viewer.scene.globe.ellipsoid)
+    var viewPointWebMercator = webMercatorProjection.project(Cesium.Cartographic.fromCartesian(centerPoint))
+    var positionData = []
+    for (let j = 0; j <= 6; j++) {
+      //度数转弧度
+      var radians = Cesium.Math.toRadians(60 * j)
+      // 计算目标点
+      var toPoint = new Cesium.Cartesian3(viewPointWebMercator.x + hexagonRadius * Math.cos(radians), viewPointWebMercator.y + hexagonRadius * Math.sin(radians), viewPointWebMercator.z)
+      // 投影坐标转世界坐标
+      toPoint = webMercatorProjection.unproject(toPoint)
+      var longitude = Cesium.Math.toDegrees(toPoint.longitude)
+      var latitude = Cesium.Math.toDegrees(toPoint.latitude)
+      positionData.push({
+        lon: longitude,
+        lat: latitude
+      })
+    }
+    return positionData
+  }
+  // 根据六边形中心坐标点及半径计算六边形坐标点
+  function countHexagonCartesian3Point(lon, lat, hexagonRadius) {
+    var centerPoint = new Cesium.Cartesian3.fromDegrees(lon, lat)
+    var webMercatorProjection = new Cesium.WebMercatorProjection(viewer.scene.globe.ellipsoid)
+    var viewPointWebMercator = webMercatorProjection.project(Cesium.Cartographic.fromCartesian(centerPoint))
+    var positionData = []
+    for (let j = 0; j <= 6; j++) {
+      //度数转弧度
+      var radians = Cesium.Math.toRadians(60 * j)
+      // 计算目标点
+      var toPoint = new Cesium.Cartesian3(viewPointWebMercator.x + hexagonRadius * Math.cos(radians), viewPointWebMercator.y + hexagonRadius * Math.sin(radians), viewPointWebMercator.z)
+      // 投影坐标转世界坐标
+      toPoint = webMercatorProjection.unproject(toPoint)
+      var longitude = Cesium.Math.toDegrees(toPoint.longitude)
+      var latitude = Cesium.Math.toDegrees(toPoint.latitude)
+      positionData.push(new Cesium.Cartesian3.fromDegrees(longitude, latitude))
+    }
+    return positionData
+  }
+  drawMagnetSpace(magnetBaseStation, rectangle)
+
+</script>
+<style scoped>
+  body {
+    overflow: hidden;
+  }
+
+  #mapContainer {
+    width: 100%;
+    height: 100%;
+  }
+</style>
+
+</html>
