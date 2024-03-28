@@ -19,8 +19,9 @@
     <el-button @click="clickEvent(1)">entity</el-button>
     <el-button @click="clickEvent(2)">primitive</el-button>
     <el-button @click="clickEvent(3)">entity聚合</el-button>
-    <el-button @click="clickEvent(4)">primitive聚合1</el-button>
-    <el-button @click="clickEvent(5)">primitive聚合2</el-button>
+    <!-- <el-button @click="clickEvent(4)">primitive聚合1</el-button> -->
+    <el-button @click="clickEvent(5)">primitive聚合</el-button>
+    <el-button @click="clickEvent(6)">清除</el-button>
   </div>
   <div id="mapContainer" v-loading="true"></div>
 </body>
@@ -62,7 +63,7 @@
     })
   }
   const addEntity = () => {
-    viewer.entities.removeAll()
+    // viewer.entities.removeAll()
     getPoints((features) => {
       features.forEach((item, index) => {
         viewer.entities.add({
@@ -98,8 +99,8 @@
   const addPrimitive = (options) => {
     !billboardsPrimitives && (billboardsPrimitives = viewer.scene.primitives.add(new Cesium.BillboardCollection()))
     !labelsPrimitives && (labelsPrimitives = viewer.scene.primitives.add(new Cesium.LabelCollection()))
-    billboardsPrimitives.removeAll()
-    labelsPrimitives.removeAll()
+    // billboardsPrimitives.removeAll()
+    // labelsPrimitives.removeAll()
     // let points = getPoints()
     getPoints((features) => {
       console.log('拿到点位', features.length)
@@ -220,30 +221,6 @@
         cluster.billboard.image = pinImg
       })
     })
-    // {
-    //   lng
-    //   lat
-    //   id
-    //   name
-    //   url
-    //   poiWid
-    //   poiHig
-    // }
-    // let a = {
-    //   "geometry": {
-    //     "coordinates": [125.37309576840005, 43.82650035842283],
-    //     "type": "Point"
-    //   },
-    //   "properties": {
-    //     "height": "15.1",
-    //     "name": "吴函",
-    //     "age": 6,
-    //     "sex": "女",
-    //     "image": "static/image/cluster/girl.png"
-    //   }
-    // }
-
-    // return primitivecluster
   }
   const addPrimitiveCluster2 = () => {
     !primitiveCluster && (primitiveCluster = new PrimitiveCluster(viewer))
@@ -254,6 +231,14 @@
         delay: 100
       })
     })
+  }
+  const clear = () => {
+    viewer.entities.removeAll()
+    billboardsPrimitives && billboardsPrimitives.removeAll()
+    labelsPrimitives && labelsPrimitives.removeAll()
+    entityCluster && entityCluster.destroy()
+    entityCluster && entityCluster.destroy()
+    primitiveCluster && primitiveCluster.destroy()
   }
 
   let vue = new Vue({
@@ -266,6 +251,7 @@
     },
     methods: {
       clickEvent(val) {
+        clear()
         switch (val) {
           case 1:
             addEntity()
@@ -281,6 +267,9 @@
             break
           case 5:
             addPrimitiveCluster2()
+            break
+          case 6:
+            clear()
             break
           default:
             break

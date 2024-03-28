@@ -4,7 +4,7 @@
  * @Author: YangYuzhuo
  * @Date: 2024-01-02 11:08:52
  * @LastEditors: YangYuzhuo
- * @LastEditTime: 2024-03-27 12:20:03
+ * @LastEditTime: 2024-03-28 11:52:20
  * Copyright 2024
  * listeners
  */
@@ -159,11 +159,11 @@ export default class PrimitiveCluster {
     opt.poiStyle.labelStyle = { ...defaultOption.poiStyle.labelStyle, ...opt.poiStyle.labelStyle }
     this.option = opt
 
-    const primitives = this.viewer.scene.primitives.add(new Cesium.PrimitiveCollection())
+    this.primitives = this.viewer.scene.primitives.add(new Cesium.PrimitiveCollection())
     const billboardCollection = new Cesium.BillboardCollection()
     const labelCollection = new Cesium.LabelCollection()
     this.primitiveCluster = new PrimitiveClusterBase()
-    primitives.add(this.primitiveCluster)
+    this.primitives.add(this.primitiveCluster)
     this.primitiveCluster._billboardCollection = billboardCollection
     this.primitiveCluster._labelCollection = labelCollection
 
@@ -341,7 +341,8 @@ export default class PrimitiveCluster {
    */
   destroy() {
     this.handler && this.primitiveCluster.clusterEvent.removeEventListener(this.handler)
-    this.primitiveCluster && this.viewer.scene.primitives.remove(this.primitiveCluster)
+    this.primitiveCluster && this.viewer.scene.primitives.remove(this.primitives)
+    this.primitives = null
     this.primitiveCluster = null
     this.handler = null
     this.type = null
@@ -354,8 +355,8 @@ export default class PrimitiveCluster {
    */
   set show(bool) {
     this._show = bool
-    if (this.primitiveCluster) {
-      this.primitiveCluster.show = bool
+    if (this.primitives) {
+      this.primitives.show = bool
     }
   }
   get show() {
