@@ -1,13 +1,8 @@
-// export const describe: string = '通用前端方法'
 /**
  * @description 生成一个唯一的uuid方法
  * @param {number} len - uuid长度
  * @param {number} radix - 可选，从62个数字大小写字母中截取radix个作为选择池
  * @return {*}
- * @example
- * ```ts
- *   gs3d.util.common.getUuid(8)
- * ```
  */
 const getUuid = (len, radix) => {
   var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')
