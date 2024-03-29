@@ -4,7 +4,7 @@
  * @Author: YangYuzhuo
  * @Date: 2024-01-02 11:08:52
  * @LastEditors: YangYuzhuo
- * @LastEditTime: 2024-03-28 11:52:20
+ * @LastEditTime: 2024-03-29 15:54:24
  * Copyright 2024
  * listeners
  */
@@ -324,7 +324,7 @@ export default class PrimitiveCluster {
   //     ctx.textAlign = 'center'
   //     ctx.textBaseline = 'middle'
   //     ctx.fillText(label, size / 2, size / 2)
-  //     return canvas.toDataURL()
+  //     return canvas
   //   })
   //   return promise
   // }

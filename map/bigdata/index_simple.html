@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css" />
+  <script src="https://unpkg.com/vue@2/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <script src="static/libs/turf.min.js"></script>
+  <link rel="stylesheet" href="static/libs/Cesium/Widgets/widgets.css" />
+  <script src="static/libs/Cesium/Cesium.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/kdbush"></script>
+  <title>cesium加载大数据量</title>
+</head>
+
+<body>
+  <div id="app">
+    <el-button @click="clickEvent(1)">entity</el-button>
+    <el-button @click="clickEvent(2)">primitive</el-button>
+    <el-button @click="clickEvent(3)">entity聚合</el-button>
+    <el-button @click="clickEvent(4)">primitive聚合</el-button>
+    <el-button @click="clickEvent(5)">清除</el-button>
+  </div>
+  <div id="mapContainer"></div>
+</body>
+<script type="module">
+  import EntityCluster from './EntityCluster.js'
+  import PrimitiveCluster from './PrimitiveCluster.js'
+  import PrimitiveClusterBase from './PrimitiveClusterBase.js'
+  let bbox = [110.35502558000002, 31.384368830000028, 116.64641233000009, 36.36650799000006]
+  let number = 120000
+  Cesium.Ion.defaultAccessToken =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4NTFhNzNiMC1hNDg2LTQ2ZjktOWU4OC02ZWYyNmRlNWZmOWYiLCJpZCI6NDcwNjMsImlhdCI6MTYxNjg0NzA1M30.4dNi5U6RimD-MY3abc2dXdGS-xpTatDMqMeUS5cnfAA'
+  let viewer = new Cesium.Viewer('mapContainer')
+  // 显示帧率
+  viewer.scene.debugShowFramesPerSecond = true
+  // let tdtLayer = new Cesium.UrlTemplateImageryProvider({
+  //   url: 'https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+  //   subdomains: ['a', 'b', 'c', 'd'],
+  // })
+  // viewer.imageryLayers.addImageryProvider(tdtLayer)
+  // viewer.scene.fxaa = false
+  // viewer.scene.postProcessStages.fxaa.enabled = false
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(115.07093905148879, 33.893744274680095, 2124853)
+  })
+
+  const getPoints = (callback = () => { }) => {
+    // let points = turf.randomPoint(number, { bbox })
+    // let features = points.features
+    // return features
+    //初始化worker
+    let worker = new Worker('static/worker.js')
+    //主函数向worker发送数据
+    worker.postMessage([number, JSON.parse(JSON.stringify(bbox))])
+    //主函数监听获取woker计算后的数据
+    worker.addEventListener('message', function handleMessageFromWorker(msg) {
+      worker.terminate() //关闭worker
+      let points = msg.data
+      callback(points?.features)
+    })
+  }
+  const addEntity = () => {
+    // viewer.entities.removeAll()
+    getPoints((features) => {
+      features.forEach((item) => {
+        viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(...item.geometry.coordinates),
+          billboard: {
+            image: "static/images/red_position.png",
+            width: 64,
+            height: 64,
+          }
+        })
+      })
+      // viewer.zoomTo(viewer.entities)
+    })
+  }
+  let billboardsPrimitives, labelsPrimitives = null
+
+  const addPrimitive = (options) => {
+    !billboardsPrimitives && (billboardsPrimitives = viewer.scene.primitives.add(new Cesium.BillboardCollection()))
+    // billboardsPrimitives.removeAll()
+    // let points = getPoints()
+    getPoints((features) => {
+      console.log('拿到点位', features.length)
+      console.time('绘制')
+      features.forEach((item, index) => {
+        billboardsPrimitives.add({
+          position: new Cesium.Cartesian3.fromDegrees(...item.geometry.coordinates),
+          image: "static/images/red_position.png"
+        })
+      })
+      console.timeEnd('绘制')
+    })
+  }
+  let entityCluster, primitiveCluster = null
+  let clusterOption = {
+    data: [],
+    interval: [
+      {
+        interval: [2, 500],
+        image: './static/images/light_blue_bkg.png',
+        width: 40,
+        height: 40,
+      },
+      {
+        interval: [501, 1000],
+        image: './static/images/dark_blue_bkg.png',
+        width: 48,
+        height: 48,
+      },
+      {
+        interval: [1001, 2000],
+        image: './static/images/orange_bkg.png',
+        width: 56,
+        height: 56,
+      },
+      {
+        interval: [2001, 9999999999],
+        image: './static/images/red_bkg.png',
+        width: 64,
+        height: 64,
+      },
+    ],
+  }
+  const addEntityCluster = () => {
+    !entityCluster && (entityCluster = new EntityCluster(viewer))
+    getPoints((features) => {
+      entityCluster.draw({
+        ...clusterOption,
+        data: features,
+      })
+    })
+  }
+  const addPrimitiveCluster = () => {
+    !primitiveCluster && (primitiveCluster = new PrimitiveCluster(viewer))
+    getPoints((features) => {
+      primitiveCluster.draw({
+        ...clusterOption,
+        data: features,
+        delay: 200
+      })
+    })
+  }
+  const clear = () => {
+    viewer.entities.removeAll()
+    billboardsPrimitives && billboardsPrimitives.removeAll()
+    labelsPrimitives && labelsPrimitives.removeAll()
+    entityCluster && entityCluster.destroy()
+    entityCluster && entityCluster.destroy()
+    primitiveCluster && primitiveCluster.destroy()
+  }
+
+  const vue = new Vue({
+    el: '#app',
+    data: function() {
+      return {}
+    },
+    methods: {
+      clickEvent(val) {
+        clear()
+        switch (val) {
+          case 1:
+            addEntity()
+            break
+          case 2:
+            addPrimitive()
+            break
+          case 3:
+            addEntityCluster()
+            break
+          case 4:
+            addPrimitiveCluster()
+            break
+          case 5:
+            clear()
+            break
+          default:
+            break
+        }
+      }
+    },
+  })
+</script>
+<style scoped>
+  body {
+    overflow: hidden;
+  }
+
+  #app {
+    width: 100%;
+    display: flex;
+    padding: 15px;
+  }
+
+  #mapContainer {
+    width: 90%;
+    height: 800px;
+  }
+</style>
+
+</html>
